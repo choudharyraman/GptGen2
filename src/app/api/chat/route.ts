@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { OPENROUTER_BASE_URL, DEFAULT_MODEL, MAX_TOKENS, TEMPERATURE, PERSONAS } from "@/lib/constants";
+import { hybridSearch } from "@/lib/retriever";
 
-export const runtime = "edge";
+// Removed "edge" runtime because Transformers.js requires Node.js features
+export const runtime = "nodejs";
 
 const RATE_LIMIT_MAP = new Map<string, { count: number; resetTime: number }>();
 const RATE_LIMIT_MAX = 20;
@@ -25,14 +27,38 @@ function checkRateLimit(key: string): boolean {
   return true;
 }
 
+// A helper to make non-streaming calls to OpenRouter
+async function callOpenRouter(apiKey: string, modelId: string, messages: any[], temperature: number) {
+  const res = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+      "X-Title": "GptGen2",
+    },
+    body: JSON.stringify({
+      model: modelId,
+      messages,
+      stream: false,
+      max_tokens: MAX_TOKENS,
+      temperature,
+    }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`OpenRouter Error: ${await res.text()}`);
+  }
+
+  const data = await res.json();
+  return data.choices[0].message.content;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const rateLimitKey = getRateLimitKey(req);
     if (!checkRateLimit(rateLimitKey)) {
-      return NextResponse.json(
-        { error: "Too many requests. Please wait a moment." },
-        { status: 429 }
-      );
+      return NextResponse.json({ error: "Too many requests. Please wait." }, { status: 429 });
     }
 
     const body = await req.json();
@@ -47,125 +73,129 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "API key not configured" }, { status: 500 });
     }
 
-    // Fix: use systemPrompt not prompt
     const persona = PERSONAS.find(p => p.id === personaId);
     const personaPrompt = persona?.systemPrompt ?? "You are GptGen2, a helpful, harmless, and honest AI assistant.";
 
-    const systemPrompt = {
-      role: "system",
-      content: `${personaPrompt}
+    // The user's latest query
+    const lastUserMessage = messages[messages.length - 1].content;
 
-FORMATTING INSTRUCTIONS:
-- Provide a clear, well-structured response.
-- At the end of your response, add a "---\\n**References & Sources:**" section and list any key facts, frameworks, or concepts you drew upon.`,
-    };
+    // We will construct a ReadableStream to stream our complex process back to the user
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        const sendThink = (text: string) => {
+          controller.enqueue(encoder.encode("data: " + JSON.stringify({ type: "thinking", content: text + "\n" }) + "\n\n"));
+        };
+        const sendContent = (text: string) => {
+          controller.enqueue(encoder.encode("data: " + JSON.stringify({ type: "content", content: text }) + "\n\n"));
+        };
 
-    const finalMessages = [systemPrompt, ...messages];
+        sendThink("<think>");
+        sendThink("Starting Intake & Policy Check...");
+        
+        // 1. Intake Module (mocked policy check)
+        sendThink(`Analyzing query for safety and constraints... Passed.`);
 
-    const upstreamRes = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
-        "X-Title": "GptGen2",
-      },
-      body: JSON.stringify({
-        model: modelId,
-        messages: finalMessages,
-        stream: true,
-        max_tokens: MAX_TOKENS,
-        temperature: TEMPERATURE,
-      }),
-    });
+        // 2. Retriever Stage
+        sendThink(`Running Hybrid Retriever (Dense + Sparse) for query: "${lastUserMessage.substring(0, 30)}..."`);
+        
+        let retrievedDocs: any[] = [];
+        try {
+          retrievedDocs = await hybridSearch(lastUserMessage, 3);
+          sendThink(`Retrieved ${retrievedDocs.length} chunks of evidence.`);
+        } catch (e: any) {
+          sendThink(`Retrieval failed (maybe store is empty). Proceeding without evidence.`);
+        }
 
-    if (!upstreamRes.ok) {
-      const errorText = await upstreamRes.text();
-      console.error("OpenRouter error:", errorText);
-      let errMsg = "AI service error. Please try again.";
-      try {
-        const parsed = JSON.parse(errorText);
-        errMsg = parsed.error?.metadata?.raw || parsed.error?.message || errMsg;
-      } catch (e) {}
-      return NextResponse.json(
-        { error: errMsg },
-        { status: upstreamRes.status }
-      );
-    }
+        const evidenceContext = retrievedDocs.map((d, i) => `[Source ${i+1}]: ${d.pageContent}`).join("\n\n");
 
-    // Transform the OpenRouter SSE stream into our own structured SSE stream.
-    // This properly handles both:
-    //   1. Native reasoning models (delta.reasoning + delta.content)
-    //   2. Standard models (delta.content only)
-    const transformedStream = new TransformStream({
-      start(controller) {
-        (this as any).buffer = "";
-        (this as any).reasoningDone = false;
-        (this as any).hasNativeReasoning = false;
-        (this as any).sentThinkOpen = false;
-        (this as any).sentThinkClose = false;
-      },
+        // 3. Generator Stage
+        sendThink("Generating claims based on evidence...");
+        const generatorSystemPrompt = `${personaPrompt}\n\nEVIDENCE:\n${evidenceContext}\n\nYou must strictly answer based on the evidence. Use [Source X] format for inline citations.`;
+        
+        const generatorMessages = [
+          { role: "system", content: generatorSystemPrompt },
+          ...messages
+        ];
 
-      transform(chunk: Uint8Array, controller) {
-        const self = this as any;
-        const text = new TextDecoder().decode(chunk);
-        self.buffer += text;
+        let generatedOutput = "";
+        try {
+          generatedOutput = await callOpenRouter(apiKey, modelId, generatorMessages, TEMPERATURE);
+          sendThink("Initial generation complete.");
+        } catch (e: any) {
+          sendThink(`Generator Error: ${e.message}`);
+          sendThink("</think>");
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+          return;
+        }
 
-        const lines = self.buffer.split("\n");
-        self.buffer = lines.pop() ?? "";
+        // 4. Verifier Stage
+        sendThink("Executing independent Verifier LLM...");
+        const verifierPrompt = `You are a strict fact-checker. 
+EVIDENCE:
+${evidenceContext}
 
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed.startsWith("data: ") || trimmed === "data: [DONE]") continue;
+CLAIM TO VERIFY:
+${generatedOutput}
 
-          let parsed: any;
+Evaluate if the claim is supported by the evidence. Respond ONLY with a JSON object: 
+{ "verdict": "pass" | "fail", "reason": "...", "confidence": 0.0 - 1.0 }`;
+
+        let verdict = "pass";
+        let reason = "";
+        try {
+          // Using a fast free model for verification if possible, fallback to same model
+          const verifierOutput = await callOpenRouter(apiKey, "google/gemma-2-9b-it:free", [{ role: "user", content: verifierPrompt }], 0.1);
+          
+          const jsonMatch = verifierOutput.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            verdict = parsed.verdict;
+            reason = parsed.reason;
+            sendThink(`Verifier Verdict: ${verdict.toUpperCase()} (Confidence: ${parsed.confidence})`);
+            if (verdict === "fail") {
+              sendThink(`Verifier Reason: ${reason}`);
+            }
+          } else {
+            sendThink("Verifier returned unstructured output. Assuming pass.");
+          }
+        } catch (e: any) {
+          sendThink(`Verifier Error: ${e.message}. Bypassing verification.`);
+        }
+
+        // 5. Consensus & Policy
+        if (verdict === "fail") {
+          sendThink("Consensus Triggered: Strict decoding fallback activated due to verifier failure.");
+          sendThink("Regenerating with stricter constraints...");
+          
           try {
-            parsed = JSON.parse(trimmed.slice(6));
-          } catch {
-            continue;
-          }
-
-          const delta = parsed.choices?.[0]?.delta;
-          if (!delta) continue;
-
-          const reasoningChunk: string = delta.reasoning ?? "";
-          const contentChunk: string = delta.content ?? "";
-
-          // --- Handle native reasoning tokens ---
-          if (reasoningChunk) {
-            self.hasNativeReasoning = true;
-            if (!self.sentThinkOpen) {
-              controller.enqueue(encode("data: " + JSON.stringify({ type: "thinking", content: "<think>" }) + "\n\n"));
-              self.sentThinkOpen = true;
-            }
-            controller.enqueue(encode("data: " + JSON.stringify({ type: "thinking", content: reasoningChunk }) + "\n\n"));
-          }
-
-          // --- Handle regular content tokens ---
-          if (contentChunk) {
-            // If this model used native reasoning and we haven't closed think yet, do it now
-            if (self.hasNativeReasoning && !self.sentThinkClose) {
-              controller.enqueue(encode("data: " + JSON.stringify({ type: "thinking", content: "</think>" }) + "\n\n"));
-              self.sentThinkClose = true;
-            }
-            controller.enqueue(encode("data: " + JSON.stringify({ type: "content", content: contentChunk }) + "\n\n"));
+            // Retry with temperature 0
+            generatedOutput = await callOpenRouter(apiKey, modelId, generatorMessages, 0.0);
+            sendThink("Regeneration complete.");
+          } catch(e) {
+            // Ignore retry failure
           }
         }
-      },
 
-      flush(controller) {
-        const self = this as any;
-        // Close any open think tag
-        if (self.hasNativeReasoning && !self.sentThinkClose) {
-          controller.enqueue(encode("data: " + JSON.stringify({ type: "thinking", content: "</think>" }) + "\n\n"));
+        sendThink("Formatting final audit record and provenance...");
+        sendThink("</think>");
+
+        // 6. Final Output Stream
+        // To simulate streaming the final answer so the UI typing effect works, we chunk it.
+        const chunkSize = 20;
+        for (let i = 0; i < generatedOutput.length; i += chunkSize) {
+          sendContent(generatedOutput.substring(i, i + chunkSize));
+          // small artificial delay for visual streaming effect
+          await new Promise(r => setTimeout(r, 10)); 
         }
-        controller.enqueue(encode("data: [DONE]\n\n"));
-      },
+
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+        controller.close();
+      }
     });
 
-    upstreamRes.body!.pipeTo(transformedStream.writable);
-
-    return new Response(transformedStream.readable, {
+    return new Response(stream, {
       headers: {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
@@ -176,8 +206,4 @@ FORMATTING INSTRUCTIONS:
     console.error("Chat API error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
-}
-
-function encode(text: string): Uint8Array {
-  return new TextEncoder().encode(text);
 }

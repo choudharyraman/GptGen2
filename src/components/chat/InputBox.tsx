@@ -17,6 +17,31 @@ export default function InputBox({ onSend, onStop, isStreaming, disabled }: Inpu
   const [showPlusMenu, setShowPlusMenu] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const plusMenuRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const res = await fetch("/api/ingest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, sourceName: file.name }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(`Successfully ingested ${file.name}`);
+      } else {
+        alert(`Error ingesting: ${data.error}`);
+      }
+    } catch (err) {
+      alert("Failed to read or upload file");
+    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    setShowPlusMenu(false);
+  };
 
   // Auto resize textarea
   useEffect(() => {
@@ -73,7 +98,7 @@ export default function InputBox({ onSend, onStop, isStreaming, disabled }: Inpu
   };
 
   const menuItems = [
-    { type: "item", label: "Add photos & files", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg> },
+    { type: "item", label: "Add photos & files", action: () => { fileInputRef.current?.click(); }, icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg> },
     { type: "item", label: "Recent files", hasArrow: true, icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> },
     { type: "divider" },
     { type: "item", label: "Create image", action: () => { setInput("Create an image "); setShowPlusMenu(false); textareaRef.current?.focus(); }, icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> },
@@ -92,6 +117,15 @@ export default function InputBox({ onSend, onStop, isStreaming, disabled }: Inpu
         background: "var(--bg-primary)",
       }}
     >
+      {/* Hidden File Input */}
+      <input 
+        type="file" 
+        accept=".txt,.md,.json,.csv"
+        ref={fileInputRef} 
+        style={{ display: "none" }} 
+        onChange={handleFileUpload} 
+      />
+
       {/* Main input container - Pill shaped */}
       <div
         style={{
