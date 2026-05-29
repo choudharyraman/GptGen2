@@ -45,32 +45,34 @@ export const PERSONAS: Persona[] = [
 
 export const MODELS: Model[] = [
   {
+    id: "openrouter/free",
+    name: "Auto-Select (Free)",
+    provider: "OpenRouter",
+    providerId: "openrouter",
+  },
+  {
+    id: "liquid/lfm-2.5-1.2b-thinking:free",
+    name: "Liquid LFM 1.2b (Free)",
+    provider: "OpenRouter",
+    providerId: "liquid",
+  },
+  {
+    id: "meta-llama/llama-3.2-3b-instruct:free",
+    name: "Llama 3.2 3B (Free)",
+    provider: "OpenRouter",
+    providerId: "meta",
+  },
+  {
+    id: "qwen/qwen3-coder:free",
+    name: "Qwen 3 Coder (Free)",
+    provider: "OpenRouter",
+    providerId: "qwen",
+  },
+  {
     id: "google/gemma-4-26b-a4b-it:free",
-    name: "Gemma 4 26B",
-    provider: "Google",
-    description: "Fast & free",
-    isFree: true,
-  },
-  {
-    id: "meta-llama/llama-4-maverick:free",
-    name: "Llama 4 Maverick",
-    provider: "Meta",
-    description: "Powerful open model",
-    isFree: true,
-  },
-  {
-    id: "mistralai/mistral-7b-instruct:free",
-    name: "Mistral 7B",
-    provider: "Mistral AI",
-    description: "Efficient & capable",
-    isFree: true,
-  },
-  {
-    id: "deepseek/deepseek-r1:free",
-    name: "DeepSeek R1",
-    provider: "DeepSeek",
-    description: "Reasoning powerhouse",
-    isFree: true,
+    name: "Gemma 4 26B (Free)",
+    provider: "OpenRouter",
+    providerId: "google",
   },
 ];
 
@@ -115,7 +117,7 @@ export const PROMPT_TEMPLATES: PromptTemplate[] = [
 ];
 
 export const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
-export const DEFAULT_MODEL = "google/gemma-4-26b-a4b-it:free";
+export const DEFAULT_MODEL = "openrouter/free";
 export const DEFAULT_PERSONA = "default";
 export const MAX_TOKENS = 4096;
 export const TEMPERATURE = 0.7;
