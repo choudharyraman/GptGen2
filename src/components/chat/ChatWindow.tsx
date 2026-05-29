@@ -10,9 +10,10 @@ import { useChats } from "@/hooks/useChats";
 import { useChatStore } from "@/stores/chatStore";
 import InputBox from "@/components/chat/InputBox";
 import { MODELS, PERSONAS, DEFAULT_MODEL } from "@/lib/constants";
+import { generateChatTitle } from "@/lib/utils";
 
 export default function ChatWindow() {
-  const { currentChatId, chats, createNewChat } = useChats();
+  const { currentChatId, chats, createNewChat, renameChat } = useChats();
   const { toggleSidebar, sidebarOpen, currentModel, currentPersona, setModel, setPersona, addMessage, updateLastMessage, messages: storeMessages } = useChatStore();
   const [isStreaming, setIsStreaming] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -36,8 +37,16 @@ export default function ChatWindow() {
     if (!content.trim()) return;
 
     let targetChatId = currentChatId;
+    let isFirstMessage = false;
+
     if (!targetChatId) {
       targetChatId = await createNewChat();
+      isFirstMessage = true;
+    } else {
+      const existing = storeMessages[targetChatId] || [];
+      if (existing.length === 0) {
+        isFirstMessage = true;
+      }
     }
     
     if (!targetChatId) return;
@@ -51,6 +60,12 @@ export default function ChatWindow() {
       content,
       created_at: new Date().toISOString(),
     });
+
+    // Rename chat dynamically on first message
+    if (isFirstMessage) {
+      const title = generateChatTitle(content);
+      renameChat(targetChatId, title);
+    }
 
     // Add empty assistant message
     const assistantMsgId = crypto.randomUUID();
