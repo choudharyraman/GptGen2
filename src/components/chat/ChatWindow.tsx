@@ -46,6 +46,7 @@ export default function ChatWindow() {
     const userMsgId = crypto.randomUUID();
     await addMessage(targetChatId, {
       id: userMsgId,
+      chat_id: targetChatId,
       role: "user",
       content,
       created_at: new Date().toISOString(),
@@ -55,6 +56,7 @@ export default function ChatWindow() {
     const assistantMsgId = crypto.randomUUID();
     await addMessage(targetChatId, {
       id: assistantMsgId,
+      chat_id: targetChatId,
       role: "assistant",
       content: "",
       created_at: new Date().toISOString(),

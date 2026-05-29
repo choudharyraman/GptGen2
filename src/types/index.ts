@@ -29,8 +29,9 @@ export interface Model {
   id: string;
   name: string;
   provider: string;
-  description: string;
-  isFree: boolean;
+  description?: string;
+  isFree?: boolean;
+  providerId?: string;
 }
 
 export interface PromptTemplate {
