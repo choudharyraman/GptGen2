@@ -4,15 +4,16 @@ import { pipeline, env } from "@xenova/transformers";
 // but to download them to a local cache.
 env.allowLocalModels = false;
 
-interface Document {
+export interface Document {
   pageContent: string;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   embedding?: number[];
 }
 
 // Global in-memory vector store
 const memoryVectors: Document[] = [];
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let extractorPromise: Promise<any> | null = null;
 function getExtractor() {
   if (!extractorPromise) {
@@ -94,7 +95,7 @@ export async function hybridSearch(query: string, k: number = 4): Promise<Docume
   return sorted.slice(0, k).map(item => item.doc);
 }
 
-export async function ingestDocuments(texts: string[], metadatas?: Record<string, any>[]) {
+export async function ingestDocuments(texts: string[], metadatas?: Record<string, unknown>[]) {
   const extractor = await getExtractor();
   
   const docs: Document[] = [];

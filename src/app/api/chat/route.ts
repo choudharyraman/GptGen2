@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { OPENROUTER_BASE_URL, DEFAULT_MODEL, MAX_TOKENS, TEMPERATURE, PERSONAS } from "@/lib/constants";
-import { hybridSearch } from "@/lib/retriever";
+import { hybridSearch, Document } from "@/lib/retriever";
 
 // Removed "edge" runtime because Transformers.js requires Node.js features
 export const runtime = "nodejs";
@@ -28,7 +28,12 @@ function checkRateLimit(key: string): boolean {
 }
 
 // A helper to make non-streaming calls to OpenRouter
-async function callOpenRouter(apiKey: string, modelId: string, messages: any[], temperature: number) {
+async function callOpenRouter(
+  apiKey: string,
+  modelId: string,
+  messages: Array<{ role: string; content: string }>,
+  temperature: number
+) {
   const res = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
     method: "POST",
     headers: {
@@ -99,11 +104,11 @@ export async function POST(req: NextRequest) {
         // 2. Retriever Stage
         sendThink(`Running Hybrid Retriever (Dense + Sparse) for query: "${lastUserMessage.substring(0, 30)}..."`);
         
-        let retrievedDocs: any[] = [];
+        let retrievedDocs: Document[] = [];
         try {
           retrievedDocs = await hybridSearch(lastUserMessage, 3);
           sendThink(`Retrieved ${retrievedDocs.length} chunks of evidence.`);
-        } catch (e: any) {
+        } catch {
           sendThink(`Retrieval failed (maybe store is empty). Proceeding without evidence.`);
         }
 
@@ -122,8 +127,9 @@ export async function POST(req: NextRequest) {
         try {
           generatedOutput = await callOpenRouter(apiKey, modelId, generatorMessages, TEMPERATURE);
           sendThink("Initial generation complete.");
-        } catch (e: any) {
-          sendThink(`Generator Error: ${e.message}`);
+        } catch (e: unknown) {
+          const errorMsg = e instanceof Error ? e.message : String(e);
+          sendThink(`Generator Error: ${errorMsg}`);
           sendThink("</think>");
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
@@ -160,8 +166,9 @@ Evaluate if the claim is supported by the evidence. Respond ONLY with a JSON obj
           } else {
             sendThink("Verifier returned unstructured output. Assuming pass.");
           }
-        } catch (e: any) {
-          sendThink(`Verifier Error: ${e.message}. Bypassing verification.`);
+        } catch (e: unknown) {
+          const errorMsg = e instanceof Error ? e.message : String(e);
+          sendThink(`Verifier Error: ${errorMsg}. Bypassing verification.`);
         }
 
         // 5. Consensus & Policy
@@ -173,7 +180,7 @@ Evaluate if the claim is supported by the evidence. Respond ONLY with a JSON obj
             // Retry with temperature 0
             generatedOutput = await callOpenRouter(apiKey, modelId, generatorMessages, 0.0);
             sendThink("Regeneration complete.");
-          } catch(e) {
+          } catch {
             // Ignore retry failure
           }
         }

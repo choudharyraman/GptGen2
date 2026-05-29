@@ -2,7 +2,6 @@
 
 import { useRef, useEffect, useState, KeyboardEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useChatStore } from "@/stores/chatStore";
 
 interface InputBoxProps {
   onSend: (message: string) => void;
@@ -36,7 +35,7 @@ export default function InputBox({ onSend, onStop, isStreaming, disabled }: Inpu
       } else {
         alert(`Error ingesting: ${data.error}`);
       }
-    } catch (err) {
+    } catch {
       alert("Failed to read or upload file");
     }
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -97,14 +96,41 @@ export default function InputBox({ onSend, onStop, isStreaming, disabled }: Inpu
     recognition.start();
   };
 
+  const handleMenuItemClick = (label: string) => {
+    setShowPlusMenu(false);
+    switch (label) {
+      case "Add photos & files":
+        fileInputRef.current?.click();
+        break;
+      case "Create image":
+        setInput("Create an image ");
+        textareaRef.current?.focus();
+        break;
+      case "Thinking":
+        setInput("Let's think about ");
+        textareaRef.current?.focus();
+        break;
+      case "Deep research":
+        setInput("Conduct deep research on ");
+        textareaRef.current?.focus();
+        break;
+      case "Web search":
+        setInput("Search the web for ");
+        textareaRef.current?.focus();
+        break;
+      default:
+        break;
+    }
+  };
+
   const menuItems = [
-    { type: "item", label: "Add photos & files", action: () => { fileInputRef.current?.click(); }, icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg> },
+    { type: "item", label: "Add photos & files", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg> },
     { type: "item", label: "Recent files", hasArrow: true, icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> },
     { type: "divider" },
-    { type: "item", label: "Create image", action: () => { setInput("Create an image "); setShowPlusMenu(false); textareaRef.current?.focus(); }, icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> },
-    { type: "item", label: "Thinking", action: () => { setInput("Let's think about "); setShowPlusMenu(false); textareaRef.current?.focus(); }, icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="5"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M4.22 4.22l1.42 1.42"/><path d="M18.36 18.36l1.42 1.42"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="M4.22 19.78l1.42-1.42"/><path d="M18.36 5.64l1.42-1.42"/></svg> },
-    { type: "item", label: "Deep research", action: () => { setInput("Conduct deep research on "); setShowPlusMenu(false); textareaRef.current?.focus(); }, icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><path d="M11 8v3l2 2"/></svg> },
-    { type: "item", label: "Web search", action: () => { setInput("Search the web for "); setShowPlusMenu(false); textareaRef.current?.focus(); }, icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> },
+    { type: "item", label: "Create image", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> },
+    { type: "item", label: "Thinking", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="5"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M4.22 4.22l1.42 1.42"/><path d="M18.36 18.36l1.42 1.42"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="M4.22 19.78l1.42-1.42"/><path d="M18.36 5.64l1.42-1.42"/></svg> },
+    { type: "item", label: "Deep research", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><path d="M11 8v3l2 2"/></svg> },
+    { type: "item", label: "Web search", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> },
     { type: "item", label: "More", hasArrow: true, icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg> },
     { type: "divider" },
     { type: "item", label: "Projects", hasArrow: true, icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> },
@@ -213,10 +239,8 @@ export default function InputBox({ onSend, onStop, isStreaming, disabled }: Inpu
                   return (
                     <button
                       key={idx}
-                      onClick={() => {
-                        if (item.action) item.action();
-                        else setShowPlusMenu(false); // Default close for unhandled
-                      }}
+                      onClick={() => handleMenuItemClick(item.label || "")}
+
                       style={{
                         display: "flex",
                         alignItems: "center",

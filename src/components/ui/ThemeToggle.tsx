@@ -5,13 +5,6 @@ import { useState, useEffect } from "react";
 export default function ThemeToggle() {
   const [theme, setTheme] = useState<"light" | "dark">("dark");
 
-  useEffect(() => {
-    const stored = localStorage.getItem("theme") as "light" | "dark" | null;
-    const initial = stored || "dark";
-    setTheme(initial);
-    applyTheme(initial);
-  }, []);
-
   const applyTheme = (t: "light" | "dark") => {
     document.documentElement.setAttribute("data-theme", t);
     if (t === "dark") {
@@ -21,6 +14,15 @@ export default function ThemeToggle() {
     }
     localStorage.setItem("theme", t);
   };
+
+  useEffect(() => {
+    const stored = localStorage.getItem("theme") as "light" | "dark" | null;
+    const initial = stored || "dark";
+    setTimeout(() => {
+      setTheme(initial);
+    }, 0);
+    applyTheme(initial);
+  }, []);
 
   const toggle = () => {
     const next = theme === "dark" ? "light" : "dark";

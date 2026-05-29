@@ -36,8 +36,9 @@ export async function POST(req: NextRequest) {
       success: true, 
       message: `Successfully ingested ${numIngested} chunks.` 
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Ingestion error:", error);
-    return NextResponse.json({ error: error.message || "Internal server error" }, { status: 500 });
+    const errorMsg = error instanceof Error ? error.message : "Internal server error";
+    return NextResponse.json({ error: errorMsg }, { status: 500 });
   }
 }

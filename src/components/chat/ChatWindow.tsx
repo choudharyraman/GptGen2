@@ -132,8 +132,9 @@ export default function ChatWindow() {
 
               const formattedMessage = (fullThinking ? `<think>${fullThinking}</think>\n\n` : "") + fullContent;
               updateLastMessage(targetChatId, formattedMessage);
-            } catch (e: any) {
-              console.warn("SSE parsing warning (buffered):", e.message);
+            } catch (e: unknown) {
+              const errMsg = e instanceof Error ? e.message : String(e);
+              console.warn("SSE parsing warning (buffered):", errMsg);
             }
           }
         }
@@ -153,16 +154,18 @@ export default function ChatWindow() {
             }
             const formattedMessage = (fullThinking ? `<think>${fullThinking}</think>\n\n` : "") + fullContent;
             updateLastMessage(targetChatId, formattedMessage);
-          } catch (e: any) {
-            console.warn("SSE parsing warning (final):", e.message);
+          } catch (e: unknown) {
+            const errMsg = e instanceof Error ? e.message : String(e);
+            console.warn("SSE parsing warning (final):", errMsg);
           }
         }
       }
-    } catch (error: any) {
-      if (error.name !== "AbortError") {
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      if (err.name !== "AbortError") {
         updateLastMessage(
           targetChatId,
-          error.message || "Sorry, I encountered an error generating the response."
+          err.message || "Sorry, I encountered an error generating the response."
         );
       }
     } finally {
@@ -506,7 +509,7 @@ export default function ChatWindow() {
                             <ReactMarkdown
                               remarkPlugins={[remarkGfm]}
                               components={{
-                                code({ node, inline, className, children, ...props }: any) {
+                                code({ inline, className, children, ...props }: React.ComponentPropsWithoutRef<"code"> & { inline?: boolean }) {
                                   const match = /language-(\w+)/.exec(className || "");
                                   return !inline && match ? (
                                     <div style={{ margin: "1rem 0", borderRadius: 8, overflow: "hidden" }}>
@@ -515,7 +518,7 @@ export default function ChatWindow() {
                                         <button style={{ background: "none", border: "none", color: "#a1a1aa", cursor: "pointer" }}>Copy</button>
                                       </div>
                                       <SyntaxHighlighter
-                                        {...props}
+                                        {...props as Record<string, unknown>}
                                         style={vscDarkPlus}
                                         language={match[1]}
                                         PreTag="div"
