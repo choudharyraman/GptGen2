@@ -80,10 +80,15 @@ FORMATTING INSTRUCTIONS:
     });
 
     if (!upstreamRes.ok) {
-      const error = await upstreamRes.text();
-      console.error("OpenRouter error:", error);
+      const errorText = await upstreamRes.text();
+      console.error("OpenRouter error:", errorText);
+      let errMsg = "AI service error. Please try again.";
+      try {
+        const parsed = JSON.parse(errorText);
+        errMsg = parsed.error?.metadata?.raw || parsed.error?.message || errMsg;
+      } catch (e) {}
       return NextResponse.json(
-        { error: "AI service error. Please try again." },
+        { error: errMsg },
         { status: upstreamRes.status }
       );
     }

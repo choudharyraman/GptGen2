@@ -77,7 +77,14 @@ export default function ChatWindow() {
         signal: abortControllerRef.current.signal,
       });
 
-      if (!response.ok) throw new Error("Failed to fetch response");
+      if (!response.ok) {
+        let errorMsg = "Failed to fetch response";
+        try {
+          const errData = await response.json();
+          errorMsg = errData.error || errorMsg;
+        } catch {}
+        throw new Error(errorMsg);
+      }
       if (!response.body) throw new Error("No response body");
 
       const reader = response.body.getReader();
@@ -140,7 +147,7 @@ export default function ChatWindow() {
       if (error.name !== "AbortError") {
         updateLastMessage(
           targetChatId,
-          "Sorry, I encountered an error generating the response."
+          error.message || "Sorry, I encountered an error generating the response."
         );
       }
     } finally {
