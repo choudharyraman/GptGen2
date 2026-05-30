@@ -4,6 +4,8 @@ export interface Message {
   role: "user" | "assistant" | "system";
   content: string;
   created_at: string;
+  sources?: Array<{ name: string; content?: string }>;
+  thinkingDuration?: number;
 }
 
 export interface Chat {

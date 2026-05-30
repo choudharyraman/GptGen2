@@ -33,6 +33,10 @@ export function useChat() {
 
       const persona = PERSONAS.find((p) => p.id === currentPersona);
 
+      // Determine if this is the first message before adding the user message to store
+      const existingMessages = messages[currentChatId] || [];
+      const isFirstMessage = existingMessages.length === 0;
+
       // Add user message
       const userMsg: Message = {
         id: generateId(),
@@ -52,8 +56,7 @@ export function useChat() {
       }).then(() => {});
 
       // Update chat title if it's the first message
-      const existingMessages = messages[currentChatId] || [];
-      if (existingMessages.length === 0) {
+      if (isFirstMessage) {
         const title = generateChatTitle(content);
         updateChat(currentChatId, { title, updated_at: new Date().toISOString() });
         supabase

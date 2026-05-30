@@ -35,8 +35,15 @@ export function truncate(text: string, maxLength: number): string {
 }
 
 export function generateChatTitle(firstMessage: string): string {
-  const cleaned = firstMessage.trim().replace(/\n/g, " ");
-  return truncate(cleaned, 40) || "New Chat";
+  const cleaned = firstMessage.trim().replace(/\s+/g, " ");
+  if (!cleaned) return "New Chat";
+  
+  const words = cleaned.split(" ");
+  if (words.length <= 5) {
+    return cleaned;
+  }
+  
+  return words.slice(0, 5).join(" ") + "...";
 }
 
 export function downloadAsMarkdown(title: string, content: string): void {

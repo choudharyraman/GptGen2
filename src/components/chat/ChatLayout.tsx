@@ -7,15 +7,19 @@ import { useChatStore } from "@/stores/chatStore";
 import { useChats } from "@/hooks/useChats";
 
 export default function ChatLayout() {
-  const { toggleSidebar } = useChatStore();
-  const { currentChatId, createNewChat } = useChats();
+  const { _hasHydrated, toggleSidebar } = useChatStore();
+  const { currentChatId, createNewChat, chats, selectChat } = useChats();
 
-  // Create initial chat if none exists
+  // Create initial chat if none exists and hydration is complete
   useEffect(() => {
-    if (!currentChatId) {
-      createNewChat();
+    if (_hasHydrated && !currentChatId) {
+      if (chats.length > 0) {
+        selectChat(chats[0].id);
+      } else {
+        createNewChat();
+      }
     }
-  }, []);
+  }, [_hasHydrated, currentChatId, createNewChat, chats, selectChat]);
 
   // Keyboard shortcuts
   useEffect(() => {

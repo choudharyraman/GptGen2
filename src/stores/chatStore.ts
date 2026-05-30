@@ -12,6 +12,7 @@ interface ChatStore {
   currentModel: string;
   currentPersona: string;
   sidebarOpen: boolean;
+  _hasHydrated: boolean;
 
   // Chat actions
   setChats: (chats: Chat[]) => void;
@@ -23,7 +24,12 @@ interface ChatStore {
   // Message actions
   setMessages: (chatId: string, messages: Message[]) => void;
   addMessage: (chatId: string, message: Message) => void;
-  updateLastMessage: (chatId: string, content: string) => void;
+  updateLastMessage: (
+    chatId: string,
+    content: string,
+    sources?: Array<{ name: string; content?: string }>,
+    thinkingDuration?: number
+  ) => void;
   clearMessages: (chatId: string) => void;
 
   // UI actions
@@ -32,6 +38,7 @@ interface ChatStore {
   setPersona: (persona: string) => void;
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
+  setHasHydrated: (state: boolean) => void;
 }
 
 export const useChatStore = create<ChatStore>()(
@@ -44,6 +51,7 @@ export const useChatStore = create<ChatStore>()(
       currentModel: DEFAULT_MODEL,
       currentPersona: DEFAULT_PERSONA,
       sidebarOpen: true,
+      _hasHydrated: false,
 
       setChats: (chats) => set({ chats }),
       addChat: (chat) =>
@@ -78,14 +86,17 @@ export const useChatStore = create<ChatStore>()(
             [chatId]: [...(state.messages[chatId] || []), message],
           },
         })),
-      updateLastMessage: (chatId, content) =>
+      updateLastMessage: (chatId, content, sources, thinkingDuration) =>
         set((state) => {
           const msgs = state.messages[chatId] || [];
           if (msgs.length === 0) return state;
           const updated = [...msgs];
+          const lastMsg = updated[updated.length - 1];
           updated[updated.length - 1] = {
-            ...updated[updated.length - 1],
+            ...lastMsg,
             content,
+            sources: sources !== undefined ? sources : lastMsg.sources,
+            thinkingDuration: thinkingDuration !== undefined ? thinkingDuration : lastMsg.thinkingDuration,
           };
           return { messages: { ...state.messages, [chatId]: updated } };
         }),
@@ -100,11 +111,16 @@ export const useChatStore = create<ChatStore>()(
       toggleSidebar: () =>
         set((state) => ({ sidebarOpen: !state.sidebarOpen })),
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
+      setHasHydrated: (state) => set({ _hasHydrated: state }),
     }),
     {
       name: "gptgen2-store",
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true);
+      },
       partialize: (state) => ({
         chats: state.chats,
+        currentChatId: state.currentChatId,
         messages: state.messages,
         currentModel: state.currentModel,
         currentPersona: state.currentPersona,
